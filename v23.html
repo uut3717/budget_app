@@ -432,7 +432,7 @@ const ALL_COLS_DEF=[
   {key:'_del',label:'',w:'30px',hideable:false},
 ];
 
-let accessToken=null,userProfile=null,sheetId=null;
+let accessToken=null,userProfile=null,sheetId=null,configFileId=null;
 let curView='list',curYear,curMonth;
 let undoStack=[],redoStack=[];
 let editingCell={id:null,field:null};
@@ -445,7 +445,6 @@ let hiddenCols=new Set();
 let sortKey='date',sortDir='desc';
 let filters={date:'',title:'',desc:'',cat:new Set(),_acct:new Set(),amount:''};
 let filterDebounceTimer=null;
-let imeComposing=false;
 let dragColFrom=null,rowDragFrom=null,dragCalId=null;
 let acctDragFrom=null,catDragFrom=null;
 
@@ -484,15 +483,15 @@ function migrate(){
 
 /* ── STORAGE ── */
 function getBooks(){try{return JSON.parse(localStorage.getItem('gab_books')||'null')||DEFAULT_BOOKS.map(b=>({...b}));}catch(e){return DEFAULT_BOOKS.map(b=>({...b}));}}
-function saveBooks(b){localStorage.setItem('gab_books',JSON.stringify(b));}
+function saveBooks(b){localStorage.setItem('gab_books',JSON.stringify(b));saveConfigToDrive();}
 function curBook(){return localStorage.getItem('gab_cur_book')||getBooks()[0].id;}
 function setCurBook(id){localStorage.setItem('gab_cur_book',id);}
 function getAccts(){try{const s=localStorage.getItem('gab_accts');return s?JSON.parse(s):DEFAULT_ACCTS.map(a=>({...a}));}catch(e){return DEFAULT_ACCTS.map(a=>({...a}));}}
-function saveAccts(a){localStorage.setItem('gab_accts',JSON.stringify(a));}
+function saveAccts(a){localStorage.setItem('gab_accts',JSON.stringify(a));saveConfigToDrive();}
 function getCats(){try{const s=localStorage.getItem('gab_cats');return s?JSON.parse(s):DEFAULT_CATS.map(c=>({...c}));}catch(e){return DEFAULT_CATS.map(c=>({...c}));}}
-function saveCats(c){localStorage.setItem('gab_cats',JSON.stringify(c));}
+function saveCats(c){localStorage.setItem('gab_cats',JSON.stringify(c));saveConfigToDrive();}
 function loadHidden(){try{return new Set(JSON.parse(localStorage.getItem('gab_hidden')||'[]'));}catch(e){return new Set();}}
-function saveHidden(){localStorage.setItem('gab_hidden',JSON.stringify([...hiddenCols]));}
+function saveHidden(){localStorage.setItem('gab_hidden',JSON.stringify([...hiddenCols]));saveConfigToDrive();}
 
 /* ── AUTH ── */
 let tokenClient;
@@ -510,7 +509,7 @@ function initGSI(){
   if(saved){accessToken=saved;fetchUserProfile().then(()=>showApp());}
 }
 function signIn(){if(!tokenClient){alert('잠시 후 다시 시도하세요.');return;}tokenClient.requestAccessToken({prompt:''});}
-function signOut(){accessToken=null;localStorage.removeItem('gtoken');sheetId=null;txCache={};document.getElementById('loginScreen').style.display='flex';document.getElementById('mainApp').style.display='none';}
+function signOut(){accessToken=null;localStorage.removeItem('gtoken');sheetId=null;configFileId=null;txCache={};document.getElementById('loginScreen').style.display='flex';document.getElementById('mainApp').style.display='none';}
 async function fetchUserProfile(){
   try{const r=await fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{'Authorization':'Bearer '+accessToken}});if(r.ok){userProfile=await r.json();renderUserInfo();}}catch(e){}
 }
@@ -532,6 +531,52 @@ async function apiReq(method,url,body){
   }catch(e){setSyncStatus('err','동기화 실패');return null;}
 }
 function enc(s){return encodeURIComponent(s);}
+
+/* ── DRIVE CONFIG (계좌/카테고리/장부 백업) ── */
+async function ensureConfigFileId(){
+  if(configFileId)return;
+  const cached=localStorage.getItem('gab_config_file_id');
+  if(cached){configFileId=cached;return;}
+  const q=encodeURIComponent("name='budget_config.json' and mimeType='application/json' and trashed=false");
+  const r=await fetch(`${DRIVE_API}/files?q=${q}&fields=files(id)`,{headers:{'Authorization':'Bearer '+accessToken}});
+  if(r.ok){const d=await r.json();if(d.files?.length){configFileId=d.files[0].id;localStorage.setItem('gab_config_file_id',configFileId);return;}}
+  // 없으면 빈 파일 생성
+  const meta=new Blob([JSON.stringify({name:'budget_config.json',mimeType:'application/json'})],{type:'application/json'});
+  const body=new Blob([JSON.stringify({})],{type:'application/json'});
+  const form=new FormData();form.append('metadata',meta);form.append('file',body);
+  const cr=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',{method:'POST',headers:{'Authorization':'Bearer '+accessToken},body:form});
+  if(cr.ok){const cd=await cr.json();configFileId=cd.id;localStorage.setItem('gab_config_file_id',configFileId);}
+}
+async function saveConfigToDrive(){
+  if(!accessToken||!configFileId)return;
+  const cfg={
+    accts:getAccts(),
+    cats:getCats(),
+    books:getBooks(),
+    hiddenCols:[...hiddenCols],
+    savedAt:new Date().toISOString()
+  };
+  const body=new Blob([JSON.stringify(cfg)],{type:'application/json'});
+  const form=new FormData();form.append('file',body);
+  await fetch(`https://www.googleapis.com/upload/drive/v3/files/${configFileId}?uploadType=multipart`,{
+    method:'PATCH',headers:{'Authorization':'Bearer '+accessToken},body:form
+  });
+}
+async function loadConfigFromDrive(){
+  if(!accessToken)return false;
+  try{
+    await ensureConfigFileId();
+    if(!configFileId)return false;
+    const r=await fetch(`${DRIVE_API}/files/${configFileId}?alt=media`,{headers:{'Authorization':'Bearer '+accessToken}});
+    if(!r.ok)return false;
+    const cfg=await r.json();
+    if(cfg.accts?.length){localStorage.setItem('gab_accts',JSON.stringify(cfg.accts));}
+    if(cfg.cats?.length){localStorage.setItem('gab_cats',JSON.stringify(cfg.cats));}
+    if(cfg.books?.length){localStorage.setItem('gab_books',JSON.stringify(cfg.books));}
+    if(cfg.hiddenCols){localStorage.setItem('gab_hidden',JSON.stringify(cfg.hiddenCols));}
+    return true;
+  }catch(e){return false;}
+}
 
 async function ensureSheetId(){
   const cached=localStorage.getItem('gab_sheet_id');
@@ -573,7 +618,11 @@ async function saveToSheet(){
 async function showApp(){
   document.getElementById('loginScreen').style.display='none';
   document.getElementById('mainApp').style.display='block';
-  hiddenCols=loadHidden();initDate();document.getElementById('fDate').value=todayStr();
+  initDate();document.getElementById('fDate').value=todayStr();
+  // Drive에서 설정(계좌/카테고리/장부/컬럼) 복원
+  await ensureConfigFileId();
+  await loadConfigFromDrive();
+  hiddenCols=loadHidden();
   await ensureSheetId();await loadFromSheet();render();
 }
 
@@ -799,9 +848,8 @@ function populateSelects(){
 }
 
 /* ── FILTER HELPERS ── */
-function debounceFilter(key,val,isComposing){
+function debounceFilter(key,val){
   filters[key]=val;
-  if(isComposing)return;
   clearTimeout(filterDebounceTimer);
   filterDebounceTimer=setTimeout(()=>render(),320);
 }
@@ -924,9 +972,7 @@ function renderHeader(){
     } else {
       fH+=`<td><input type="text" placeholder="검색" value="${filters[key]||''}"
         id="flt_${key}"
-        oninput="debounceFilter('${key}',this.value,imeComposing)"
-        oncompositionstart="imeComposing=true"
-        oncompositionend="imeComposing=false;debounceFilter('${key}',this.value,false)"
+        oninput="debounceFilter('${key}',this.value)"
         onkeydown="event.stopPropagation()"></td>`;
     }
   });
