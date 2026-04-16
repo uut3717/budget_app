@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>가계부</title>
+<title>가계부 260414_120738</title>
 <script src="https://accounts.google.com/gsi/client"></script>
 <style>
 :root{
@@ -64,7 +64,17 @@ input::placeholder{color:var(--text3)}
 
 .section-title{font-size:12px;font-weight:500;color:var(--text2);margin:.9rem 0 6px;text-transform:uppercase;letter-spacing:.06em;display:flex;align-items:center;justify-content:space-between}
 
-.form-grid{display:grid;grid-template-columns:140px 1fr 1fr 160px 115px;gap:6px;margin-bottom:6px}
+/* 모바일 우선 폼 */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px}
+.form-grid .date-col{grid-column:1}
+.form-grid .title-col{grid-column:2}
+.form-grid .desc-col{grid-column:1}
+.form-grid .cat-col{grid-column:2}
+.form-grid .amount-col{grid-column:1/-1}
+@media(min-width:640px){
+  .form-grid{grid-template-columns:140px 1fr 1fr 160px 115px}
+  .form-grid .date-col,.form-grid .title-col,.form-grid .desc-col,.form-grid .cat-col,.form-grid .amount-col{grid-column:unset}
+}
 .add-row{display:flex;gap:7px;margin-bottom:6px}
 .add-btn{flex:1;padding:7px;border:0.5px solid var(--border);border-radius:var(--radius);background:none;cursor:pointer;color:var(--text1);font-size:13px}
 .add-btn:hover{background:var(--bg3);border-color:var(--border2)}
@@ -98,7 +108,18 @@ input::placeholder{color:var(--text3)}
 .date-edit-wrap input{border:none;border-radius:0;background:transparent;padding:7px 9px;font-size:14px;width:100%}
 .date-edit-hint{font-size:10px;color:var(--text3);padding:0 9px 4px;pointer-events:none}
 /* col widths */
-.col-acct{width:44px}.col-title{width:15%}.col-amount{width:106px}.col-date{width:82px}.col-cat{width:82px}.col-desc{width:160px}.col-del{width:30px;text-align:center}
+.col-acct{width:44px}
+@media(max-width:639px){
+  .summary{grid-template-columns:1fr}
+  .book-bar{gap:4px}
+  .book-tab{font-size:12px;padding:5px 8px;max-width:120px}
+  .view-bar{flex-wrap:wrap}
+  .vtab{font-size:12px;padding:5px 10px}
+  .tx-wrap{overflow-x:auto}
+  .tx-table{min-width:480px}
+  .top-bar{flex-wrap:wrap;gap:6px}
+  .add-row{flex-wrap:wrap}
+}.col-title{width:15%}.col-amount{width:106px}.col-date{width:82px}.col-cat{width:82px}.col-desc{width:160px}.col-del{width:30px;text-align:center}
 .amount-disp{font-weight:500}
 .amount-disp.inc{color:var(--green)}.amount-disp.exp{color:var(--red)}
 .del-btn{background:none;border:none;cursor:pointer;font-size:12px;color:var(--text3);padding:5px;width:100%}
@@ -160,20 +181,7 @@ input::placeholder{color:var(--text3)}
 .sm-btn:hover{background:var(--bg3);color:var(--text1)}
 .sm-btn.danger:hover{color:var(--red);border-color:var(--red)}
 
-/* 체크리스트 드롭다운 필터 */
-.filter-dropdown{position:relative;display:inline-block;width:100%}
-.filter-dropdown-btn{width:100%;padding:4px 7px;background:var(--bg1);border:0.5px solid var(--border);border-radius:var(--radius);font-size:12px;color:var(--text2);text-align:left;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:4px;white-space:nowrap;overflow:hidden}
-.filter-dropdown-btn.active{border-color:var(--green);color:var(--green)}
-.filter-dropdown-btn:hover{background:var(--bg3)}
-.fdd-arrow{font-size:9px;flex-shrink:0}
-.filter-dropdown-panel{position:absolute;top:calc(100% + 3px);left:0;min-width:140px;max-width:220px;background:var(--bg2);border:0.5px solid var(--border2);border-radius:var(--radius);z-index:500;box-shadow:0 4px 16px rgba(0,0,0,.4);padding:4px 0;max-height:220px;overflow-y:auto}
-.fdd-item{display:flex;align-items:center;gap:7px;padding:5px 10px;font-size:13px;cursor:pointer;color:var(--text1);white-space:nowrap}
-.fdd-item:hover{background:var(--bg3)}
-.fdd-item input[type=checkbox]{width:13px;height:13px;accent-color:var(--green);cursor:pointer;flex-shrink:0}
-.fdd-sep{border:none;border-top:0.5px solid var(--border);margin:3px 0}
-.fdd-clear{font-size:11px;color:var(--text3);padding:3px 10px;cursor:pointer}
-.fdd-clear:hover{color:var(--red)}
-
+.col-toggle-list{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px}
 .col-toggle{display:flex;align-items:center;gap:5px;padding:5px 10px;border:0.5px solid var(--border);border-radius:var(--radius);background:var(--bg2);cursor:pointer;font-size:13px;color:var(--text2);user-select:none}
 .col-toggle.active{background:var(--bg3);border-color:var(--green);color:var(--text1)}
 .col-toggle:hover{background:var(--bg3)}
@@ -252,11 +260,11 @@ input::placeholder{color:var(--text3)}
       </div>
     </div>
     <div class="form-grid">
-      <input type="date" id="fDate" onkeydown="fKey(event)">
-      <input type="text" id="fTitle" placeholder="제목 (선택)" onkeydown="fKey(event)">
-      <input type="text" id="fDesc" placeholder="내용" onkeydown="fKey(event)">
-      <select id="fCat" onkeydown="fKey(event)"></select>
-      <input type="text" id="fAmount" placeholder="금액 (+는 수입)" onkeydown="fKey(event)">
+      <input class="date-col" type="date" id="fDate" onkeydown="fKey(event)">
+      <input class="title-col" type="text" id="fTitle" placeholder="제목 (선택)" onkeydown="fKey(event)">
+      <input class="desc-col" type="text" id="fDesc" placeholder="내용" onkeydown="fKey(event)">
+      <select class="cat-col" id="fCat" onkeydown="fKey(event)"></select>
+      <input class="amount-col" type="text" id="fAmount" placeholder="금액 (+는 수입)" onkeydown="fKey(event)">
     </div>
     <div class="add-row">
       <select id="fAcct" style="flex:1;max-width:160px" onkeydown="fKey(event)"></select>
@@ -443,9 +451,7 @@ let txCache={};
 let colOrder=ALL_COLS_DEF.map(c=>c.key);
 let hiddenCols=new Set();
 let sortKey='date',sortDir='desc';
-let filters={date:'',title:'',desc:'',cat:new Set(),_acct:new Set(),amount:''};
-let filterDebounceTimer=null;
-let imeComposing=false;
+let filters={date:'',title:'',desc:'',cat:'',_acct:'',amount:''};
 let dragColFrom=null,rowDragFrom=null,dragCalId=null;
 let acctDragFrom=null,catDragFrom=null;
 
@@ -766,8 +772,8 @@ function sortedFiltered(){
   if(filters.date)txs=txs.filter(t=>t.date.includes(filters.date));
   if(filters.title)txs=txs.filter(t=>(t.title||'').toLowerCase().includes(filters.title.toLowerCase()));
   if(filters.desc)txs=txs.filter(t=>(t.desc||'').toLowerCase().includes(filters.desc.toLowerCase()));
-  if(filters.cat.size)txs=txs.filter(t=>filters.cat.has(t.cat));
-  if(filters._acct.size)txs=txs.filter(t=>filters._acct.has(t.acctId));
+  if(filters.cat)txs=txs.filter(t=>t.cat===filters.cat);
+  if(filters._acct)txs=txs.filter(t=>t.acctId===filters._acct);
   if(filters.amount)txs=txs.filter(t=>String(t.amount).includes(filters.amount.replace(/[^0-9]/g,'')));
   const dir=sortDir==='asc'?1:-1;
   txs.sort((a,b)=>{
@@ -794,44 +800,27 @@ function renderSummary(txs){
 /* ── SELECT POPULATE ── */
 function populateSelects(){
   const cats=getCats();const accts=getAccts();
-  ['fCat','rCat'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=cats.map(c=>`<option value="${c.name}">${c.emoji||''} ${c.name}</option>`).join('');});
-  ['fAcct','rAcct'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML='<option value="">계좌 미지정</option>'+accts.map(a=>`<option value="${a.id}">${a.name}</option>`).join('');});
+  // 카테고리: 미지정(-) 을 첫 번째로
+  const catOpts='<option value="">— 미지정</option>'+cats.map(c=>`<option value="${c.name}">${c.emoji||''} ${c.name}</option>`).join('');
+  ['fCat','rCat'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(!el)return;
+    const cur=el.value;
+    el.innerHTML=catOpts;
+    if(cur)el.value=cur;
+  });
+  // 계좌
+  const acctOpts='<option value="">계좌 미지정</option>'+accts.map(a=>`<option value="${a.id}">${a.name}</option>`).join('');
+  ['fAcct','rAcct'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(!el)return;
+    const cur=el.value;
+    el.innerHTML=acctOpts;
+    if(cur)el.value=cur;
+  });
 }
 
-/* ── FILTER HELPERS ── */
-function debounceFilter(key,val,isComposing){
-  filters[key]=val;
-  if(isComposing)return;
-  clearTimeout(filterDebounceTimer);
-  filterDebounceTimer=setTimeout(()=>render(),320);
-}
-function toggleFilterSet(key,val,el){
-  if(filters[key].has(val))filters[key].delete(val);
-  else filters[key].add(val);
-  render();
-  // 드롭다운 다시 열기
-  const btn=el.closest('.filter-dropdown');
-  if(btn)openFilterDropdown(btn.dataset.col,btn.getBoundingClientRect());
-}
-function clearFilterSet(key){filters[key]=new Set();render();}
-
-let _openDDCol=null;
-function openFilterDropdown(col,rect){
-  closeAllDropdowns();
-  _openDDCol=col;
-  const panel=document.getElementById('fdd_'+col);
-  if(!panel)return;
-  panel.style.display='block';
-}
-function closeAllDropdowns(){
-  _openDDCol=null;
-  document.querySelectorAll('.filter-dropdown-panel').forEach(p=>p.style.display='none');
-}
-document.addEventListener('click',e=>{
-  if(!e.target.closest('.filter-dropdown'))closeAllDropdowns();
-},true);
-
-
+/* ── COL VISIBILITY ── */
 function visibleCols(){return colOrder.filter(k=>!hiddenCols.has(k));}
 function renderColToggles(){
   const tog=ALL_COLS_DEF.filter(c=>c.hideable);
@@ -881,8 +870,13 @@ function cellHtml(t,field){
     const disp=t.desc||'';
     return `<div class="cell-inner" onclick="startCellEdit('${t.id}','desc')"><span class="cell-desc" title="${disp}">${disp||'<span style="color:var(--text3);font-size:12px">—</span>'}</span></div>`;
   }
-  const disp=t[field]||'';
-  return `<div class="cell-inner" onclick="startCellEdit('${t.id}','${field}')">${disp||`<span style="color:var(--text3);font-size:12px">—</span>`}</div>`;
+  // 카테고리 셀: 이모지 앞에 표시
+  if(field==='cat'){
+    const cats=getCats();
+    const catObj=cats.find(c=>c.name===t.cat);
+    const disp=t.cat?(catObj?(catObj.emoji?catObj.emoji+' ':'')+t.cat:t.cat):'<span style="color:var(--text3);font-size:12px">—</span>';
+    return `<div class="cell-inner" onclick="startCellEdit('${t.id}','cat')">${disp}</div>`;
+  }
 }
 
 // 날짜 편집 중 휠
@@ -903,42 +897,15 @@ function renderHeader(){
     const dA=key!=='_del'?`draggable="true" ondragstart="colDragStart(event,${idx})" ondragover="colDragOver(event,${idx})" ondrop="colDrop(event,${idx})" ondragend="colDragEnd()"`:'' ;
     hH+=`<th style="width:${col.w}" ${dA}><div class="th-inner" ${sA}>${key!=='_del'?`<span class="th-dh">⠿</span>`:''} ${col.label}${arrow?`<span class="sort-arrow">${arrow}</span>`:''}</div></th>`;
     if(key==='_del'){fH+=`<td></td>`;return;}
-    if(key==='_acct'){
-      const selCount=filters._acct.size;
-      const btnLabel=selCount?`계좌 ${selCount}개 선택됨`:'계좌 전체';
-      const items='<hr class="fdd-sep"><div class="fdd-clear" onclick="event.stopPropagation();clearFilterSet(\'_acct\')">전체 선택 해제</div>'
-        +accts.map(a=>`<label class="fdd-item"><input type="checkbox" ${filters._acct.has(a.id)?'checked':''} onclick="event.stopPropagation();toggleFilterSet('_acct','${a.id}',this)"> ${a.name}</label>`).join('');
-      fH+=`<td><div class="filter-dropdown" data-col="_acct">
-        <button class="filter-dropdown-btn${selCount?' active':''}" onclick="event.stopPropagation();openFilterDropdown('_acct')">${btnLabel}<span class="fdd-arrow">▾</span></button>
-        <div class="filter-dropdown-panel" id="fdd__acct" style="display:none">${items}</div>
-      </div></td>`;
-    } else if(key==='cat'){
-      const selCount=filters.cat.size;
-      const btnLabel=selCount?`카테고리 ${selCount}개`:'카테고리 전체';
-      const items='<hr class="fdd-sep"><div class="fdd-clear" onclick="event.stopPropagation();clearFilterSet(\'cat\')">전체 선택 해제</div>'
-        +cats.map(c=>`<label class="fdd-item"><input type="checkbox" ${filters.cat.has(c.name)?'checked':''} onclick="event.stopPropagation();toggleFilterSet('cat','${c.name}',this)"> ${c.emoji||''} ${c.name}</label>`).join('');
-      fH+=`<td><div class="filter-dropdown" data-col="cat">
-        <button class="filter-dropdown-btn${selCount?' active':''}" onclick="event.stopPropagation();openFilterDropdown('cat')">${btnLabel}<span class="fdd-arrow">▾</span></button>
-        <div class="filter-dropdown-panel" id="fdd_cat" style="display:none">${items}</div>
-      </div></td>`;
-    } else {
-      fH+=`<td><input type="text" placeholder="검색" value="${filters[key]||''}"
-        id="flt_${key}"
-        oninput="debounceFilter('${key}',this.value,imeComposing)"
-        oncompositionstart="imeComposing=true"
-        oncompositionend="imeComposing=false;debounceFilter('${key}',this.value,false)"
-        onkeydown="event.stopPropagation()"></td>`;
-    }
+    if(key==='_acct'){fH+=`<td><select onchange="filters._acct=this.value;render()" style="font-size:11px;padding:3px 5px"><option value="">전체</option>${accts.map(a=>`<option value="${a.id}"${filters._acct===a.id?' selected':''}>${a.name}</option>`).join('')}</select></td>`;}
+    else if(key==='cat'){fH+=`<td><select onchange="filters.cat=this.value;render()"><option value="">전체</option>${cats.map(c=>`<option value="${c.name}"${filters.cat===c.name?' selected':''}>${c.emoji?c.emoji+' ':''}${c.name}</option>`).join('')}</select></td>`;}
+    else fH+=`<td><input type="text" placeholder="검색" value="${filters[key]||''}" oninput="filters['${key}']=this.value;render()"></td>`;
   });
   hr.innerHTML=hH;fr.innerHTML=fH;
 }
 
 function renderList(txs){
-  // 텍스트 필터 입력 중엔 헤더를 다시 그리지 않음 (포커스 보존)
-  const focusedId=document.activeElement?.id;
-  const filterFocused=focusedId&&focusedId.startsWith('flt_');
-  if(!filterFocused)renderHeader();
-  const body=document.getElementById('txBody');const vc=visibleCols();
+  renderHeader();const body=document.getElementById('txBody');const vc=visibleCols();
   if(!txs.length){body.innerHTML=`<tr><td colspan="${vc.length}" class="empty">내역이 없습니다</td></tr>`;return;}
   body.innerHTML=txs.map(t=>`<tr draggable="true" data-id="${t.id}"
     ondragstart="rowDragStart(event,'${t.id}')" ondragover="rowDragOver(event,'${t.id}')"
