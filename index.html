@@ -481,7 +481,20 @@ function migrate(){
       }catch(e){}
     }
   }
-  // 계좌: gab_accts (신규 앱이라 이전 데이터 없음)
+  // 계좌: base64 아이콘 복구 (DEFAULT_ACCTS 기준으로 덮어씌움)
+  try{
+    const savedAccts=JSON.parse(localStorage.getItem('gab_accts')||'null');
+    if(savedAccts){
+      let changed=false;
+      savedAccts.forEach(a=>{
+        const def=DEFAULT_ACCTS.find(d=>d.id===a.id);
+        if(def&&def.icon?.type==='base64'&&a.icon?.type!=='base64'){
+          a.icon=def.icon;changed=true;
+        }
+      });
+      if(changed)localStorage.setItem('gab_accts',JSON.stringify(savedAccts));
+    }
+  }catch(e){}
   // 장부: gab_books
   if(!localStorage.getItem('gab_books')){
     const old=localStorage.getItem('budget_books_v2')||localStorage.getItem('budget_books');
@@ -498,6 +511,7 @@ function getAccts(){try{const s=localStorage.getItem('gab_accts');return s?JSON.
 function saveAccts(a){localStorage.setItem('gab_accts',JSON.stringify(a));}
 function getCats(){try{const s=localStorage.getItem('gab_cats');return s?JSON.parse(s):DEFAULT_CATS.map(c=>({...c}));}catch(e){return DEFAULT_CATS.map(c=>({...c}));}}
 function saveCats(c){localStorage.setItem('gab_cats',JSON.stringify(c));}
+function saveCatsAndSync(c){saveCats(c);if(sheetId)saveCatsToSheet();}
 function loadHidden(){try{return new Set(JSON.parse(localStorage.getItem('gab_hidden')||'[]'));}catch(e){return new Set();}}
 function saveHidden(){localStorage.setItem('gab_hidden',JSON.stringify([...hiddenCols]));}
 
@@ -561,6 +575,33 @@ async function ensureSheetExists(name){
     await apiReq('PUT',`${SHEETS_API}/${sheetId}/values/${enc(name+'!A1:I1')}?valueInputOption=RAW`,{values:[['ID','날짜','제목','내용','카테고리','계좌ID','금액','유형','순서']]});
   }
 }
+async function ensureCatsSheet(){
+  const d=await apiReq('GET',`${SHEETS_API}/${sheetId}?fields=sheets.properties.title`);
+  if(!d?.sheets?.map(s=>s.properties.title).includes('cats')){
+    await apiReq('POST',`${SHEETS_API}/${sheetId}:batchUpdate`,{requests:[{addSheet:{properties:{title:'cats'}}}]});
+    await apiReq('PUT',`${SHEETS_API}/${sheetId}/values/${enc('cats!A1:C1')}?valueInputOption=RAW`,{values:[['ID','이름','이모지']]});
+  }
+}
+async function loadCatsFromSheet(){
+  const d=await apiReq('GET',`${SHEETS_API}/${sheetId}/values/${enc('cats!A:C')}`);
+  const rows=d?.values||[];
+  if(rows.length<=1){
+    // 시트에 데이터 없으면 현재 localStorage 데이터를 시트에 저장
+    await saveCatsToSheet();
+    return;
+  }
+  const cats=rows.slice(1).filter(r=>r[0]).map(r=>({
+    id:String(r[0]||''),
+    name:String(r[1]||''),
+    emoji:r[2]!=null?String(r[2]):''
+  }));
+  saveCats(cats);
+}
+async function saveCatsToSheet(){
+  const cats=getCats();
+  const rows=[['ID','이름','이모지'],...cats.map(c=>[c.id,c.name,c.emoji||''])];
+  await apiReq('PUT',`${SHEETS_API}/${sheetId}/values/${enc('cats!A1')}?valueInputOption=RAW`,{values:rows});
+}
 async function loadFromSheet(){
   const sheet=curBook();
   const d=await apiReq('GET',`${SHEETS_API}/${sheetId}/values/${enc(sheet+'!A:I')}`);
@@ -588,7 +629,11 @@ async function showApp(){
   document.getElementById('loginScreen').style.display='none';
   document.getElementById('mainApp').style.display='block';
   hiddenCols=loadHidden();initDate();document.getElementById('fDate').value=todayStr();
-  await ensureSheetId();await loadFromSheet();render();
+  await ensureSheetId();
+  await ensureCatsSheet();
+  await loadCatsFromSheet();
+  await loadFromSheet();
+  render();
 }
 
 /* ── TX ── */
@@ -1136,9 +1181,9 @@ function renderCatManageList(){
     </div>`).join('');
 }
 function catDragStart(i){catDragFrom=i;}
-function catDrop(e,toIdx){e.preventDefault();if(catDragFrom===null||catDragFrom===toIdx)return;const c=getCats();const[m]=c.splice(catDragFrom,1);c.splice(toIdx,0,m);saveCats(c);catDragFrom=null;renderCatManageList();populateSelects();}
+function catDrop(e,toIdx){e.preventDefault();if(catDragFrom===null||catDragFrom===toIdx)return;const c=getCats();const[m]=c.splice(catDragFrom,1);c.splice(toIdx,0,m);saveCatsAndSync(c);catDragFrom=null;renderCatManageList();populateSelects();}
 function catDragEnd(){catDragFrom=null;document.querySelectorAll('#catManageList .manage-item').forEach(el=>el.classList.remove('drag-over'));}
-function deleteCat(id){saveCats(getCats().filter(c=>c.id!==id));render();}
+function deleteCat(id){saveCatsAndSync(getCats().filter(c=>c.id!==id));render();}
 function openCatPopup(id){
   catPopupId=id;const cats=getCats();const c=cats.find(x=>x.id===id)||{name:'',emoji:''};
   document.getElementById('catPopupTitle').textContent=id?'카테고리 편집':'카테고리 추가';
@@ -1156,7 +1201,7 @@ function saveCatPopup(){
   const cats=getCats();
   if(catPopupId){const i=cats.findIndex(c=>c.id===catPopupId);if(i>=0){cats[i].name=name;cats[i].emoji=emoji;}}
   else cats.push({id:'c_'+Date.now(),name,emoji});
-  saveCats(cats);closeCatPopup();render();
+  saveCatsAndSync(cats);closeCatPopup();render();
 }
 function deleteCatFromPopup(){deleteCat(catPopupId);closeCatPopup();}
 
