@@ -631,6 +631,7 @@ async function showApp(){
   await ensureCatsSheet();
   await loadCatsFromSheet();
   await loadFromSheet();
+  applyRecurs();
   render();
 }
 
@@ -908,7 +909,7 @@ function cellHtml(t,field){
       </div>`;
     }
     if(field==='cat'){
-      const cats=getCats();const opts=cats.map(c=>`<option value="${c.name}"${c.name===t.cat?' selected':''}>${c.emoji||''} ${c.name}</option>`).join('');
+      const cats=getCats();const opts='<option value="">— 미지정</option>'+cats.map(c=>`<option value="${c.name}"${c.name===t.cat?' selected':''}>${c.emoji||''} ${c.name}</option>`).join('');
       return `<div class="cell-edit"><select id="${iid}" onchange="commitCell('${t.id}','cat')" onblur="commitCell('${t.id}','cat')" onkeydown="cellKey(event,'${t.id}','cat')" style="width:100%">${opts}</select></div>`;
     }
     const v=field==='amount'?(t.type==='income'?'+':'')+t.amount:(t[field]||'');
@@ -916,7 +917,7 @@ function cellHtml(t,field){
   }
 
   if(field==='amount'){const sign=t.type==='income'?'+':'-';return `<div class="cell-inner amount-disp ${t.type}" onclick="startCellEdit('${t.id}','amount')">${sign}${fmtW(t.amount)}</div>`;}
-  if(field==='date'){return `<div class="cell-inner" onclick="startCellEdit('${t.id}','date')" onwheel="dateWheel(event,'${t.id}')" style="cursor:pointer">${fmtDate(t.date)}</div>`;}
+  if(field==='date'){return `<div class="cell-inner" onclick="startCellEdit('${t.id}','date')" onwheel="event.stopPropagation();dateWheel(event,'${t.id}')" style="cursor:pointer">${fmtDate(t.date)}</div>`;}
   if(field==='desc'){
     const disp=t.desc||'';
     return `<div class="cell-inner" onclick="startCellEdit('${t.id}','desc')"><span class="cell-desc" title="${disp}">${disp||'<span style="color:var(--text3);font-size:12px">—</span>'}</span></div>`;
@@ -953,7 +954,7 @@ function renderHeader(){
     if(key==='_del'){fH+=`<td></td>`;return;}
     if(key==='_acct'){fH+=`<td><select onchange="filters._acct=this.value;render()" style="font-size:11px;padding:3px 5px"><option value="">전체</option>${accts.map(a=>`<option value="${a.id}"${filters._acct===a.id?' selected':''}>${a.name}</option>`).join('')}</select></td>`;}
     else if(key==='cat'){fH+=`<td><select onchange="filters.cat=this.value;render()"><option value="">전체</option>${cats.map(c=>`<option value="${c.name}"${filters.cat===c.name?' selected':''}>${c.emoji?c.emoji+' ':''}${c.name}</option>`).join('')}</select></td>`;}
-    else fH+=`<td><input type="text" placeholder="검색" value="${filters[key]||''}" oninput="filters['${key}']=this.value;render()"></td>`;
+    else fH+=`<td><input type="text" placeholder="검색" value="${filters[key]||''}" oninput="if(!this._composing){clearTimeout(this._t);this._t=setTimeout(()=>{filters['${key}']=this.value;render();},200)}" oncompositionstart="this._composing=true" oncompositionend="this._composing=false;clearTimeout(this._t);filters['${key}']=this.value;render()"></td>`;
   });
   hr.innerHTML=hH;fr.innerHTML=fH;
 }
@@ -1224,7 +1225,6 @@ document.addEventListener('keydown',e=>{
 /* ── RENDER ── */
 function render(){
   renderBookBar();populateSelects();renderAcctManageList();renderCatManageList();renderColToggles();
-  applyRecurs();
   const txs=sortedFiltered();renderSummary(txs);
   if(curView==='list')renderList(txs);
   if(curView==='calendar')renderCalendar();
