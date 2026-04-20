@@ -481,16 +481,14 @@ function migrate(){
       }catch(e){}
     }
   }
-  // 계좌: base64 아이콘 복구 (DEFAULT_ACCTS 기준으로 덮어씌움)
+  // 계좌: base64 아이콘 복구 (DEFAULT_ACCTS 기준으로 항상 덮어씌움)
   try{
     const savedAccts=JSON.parse(localStorage.getItem('gab_accts')||'null');
     if(savedAccts){
       let changed=false;
       savedAccts.forEach(a=>{
         const def=DEFAULT_ACCTS.find(d=>d.id===a.id);
-        if(def&&def.icon?.type==='base64'&&a.icon?.type!=='base64'){
-          a.icon=def.icon;changed=true;
-        }
+        if(def&&def.icon?.type==='base64'){a.icon=def.icon;changed=true;}
       });
       if(changed)localStorage.setItem('gab_accts',JSON.stringify(savedAccts));
     }
