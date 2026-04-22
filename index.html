@@ -498,6 +498,29 @@ function migrate(){
     const old=localStorage.getItem('budget_books_v2')||localStorage.getItem('budget_books');
     if(old)localStorage.setItem('gab_books',old);
   }
+  // 반복지출 중복 제거: recurId+date 기준으로 최신 1개만 유지
+  try{
+    const books=JSON.parse(localStorage.getItem('gab_books')||'null')||[{id:'main'},{id:'book2'}];
+    books.forEach(b=>{
+      const key='gab_txs_'+b.id;
+      const raw=localStorage.getItem(key);
+      if(!raw)return;
+      const txs=JSON.parse(raw);
+      const seen=new Map();
+      const deduped=[];
+      // 뒤에서부터 순회해서 최신 1개만 남김
+      for(let i=txs.length-1;i>=0;i--){
+        const t=txs[i];
+        if(t.recurId){
+          const k=t.recurId+'|'+t.date;
+          if(seen.has(k))continue;
+          seen.set(k,true);
+        }
+        deduped.unshift(t);
+      }
+      if(deduped.length!==txs.length)localStorage.setItem(key,JSON.stringify(deduped));
+    });
+  }catch(e){}
 }
 
 /* ── STORAGE ── */
