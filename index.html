@@ -330,6 +330,15 @@ input::placeholder{color:var(--text3)}
       <div class="manage-list" id="catManageList"></div>
       <button class="add-btn" onclick="openCatPopup(null)">+ 새 카테고리 추가</button>
     </div>
+    <div class="settings-section">
+      <h3>🔧 디버그</h3>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+        <button class="add-btn" style="flex:none;padding:7px 14px" onclick="showDebug()">📊 상태 확인</button>
+        <button class="add-btn" style="flex:none;padding:7px 14px" onclick="forceReloadFromSheet()">🔄 시트에서 강제 재로드</button>
+        <button class="add-btn" style="flex:none;padding:7px 14px;color:var(--red);border-color:var(--red)" onclick="clearLocalAndReload()">🗑 로컬 캐시 초기화</button>
+      </div>
+      <pre id="debugOut" style="background:var(--bg0);padding:12px;border-radius:8px;font-size:11px;color:var(--text2);white-space:pre-wrap;word-break:break-all;max-height:400px;overflow-y:auto;display:none"></pre>
+    </div>
   </div>
 </div>
 
@@ -987,7 +996,8 @@ function renderList(txs){
   if(!txs.length){body.innerHTML=`<tr><td colspan="${vc.length}" class="empty">내역이 없습니다</td></tr>`;return;}
   body.innerHTML=txs.map(t=>`<tr draggable="true" data-id="${t.id}"
     ondragstart="rowDragStart(event,'${t.id}')" ondragover="rowDragOver(event,'${t.id}')"
-    ondrop="rowDrop(event,'${t.id}')" ondragend="rowDragEnd()">
+    ondrop="rowDrop(event,'${t.id}')" ondragend="rowDragEnd()"
+    onwheel="this.setAttribute('draggable','false');setTimeout(()=>this.setAttribute('draggable','true'),300)">
     ${vc.map(key=>key==='_del'?`<td><button class="del-btn" onclick="delTx('${t.id}')">✕</button></td>`:`<td>${cellHtml(t,key)}</td>`).join('')}
   </tr>`).join('');
 }
@@ -1236,6 +1246,69 @@ function exportCSV(){
     return `${t.date},"${t.title||''}","${t.desc||''}","${acct?acct.name:''}",${t.cat},${t.amount},${t.type==='income'?'수입':'지출'}`;
   }).join('\n')],{type:'text/csv;charset=utf-8'});
   const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='가계부.csv';a.click();URL.revokeObjectURL(url);
+}
+
+/* ── DEBUG ── */
+async function showDebug(){
+  const out=document.getElementById('debugOut');
+  out.style.display='block';
+  out.textContent='로딩 중...';
+  const book=curBook();
+  const localTxs=JSON.parse(localStorage.getItem('gab_txs_'+book)||'[]');
+  const cachedTxs=txCache[book]||[];
+
+  // 시트에서 직접 읽기
+  let sheetTxs=[];
+  let sheetRaw='(시트 미연결)';
+  try{
+    const d=await apiReq('GET',`${SHEETS_API}/${sheetId}/values/${enc(book+'!A:I')}`);
+    const rows=d?.values||[];
+    sheetTxs=rows.length<=1?[]:rows.slice(1).filter(r=>r[0]);
+    sheetRaw=`시트 행 수: ${sheetTxs.length}`;
+  }catch(e){sheetRaw='시트 읽기 실패: '+e;}
+
+  // recurId 중복 검사
+  const recurGroups={};
+  localTxs.forEach(t=>{if(t.recurId){const k=t.recurId+'|'+t.date;recurGroups[k]=(recurGroups[k]||0)+1;}});
+  const dupRecurs=Object.entries(recurGroups).filter(([,v])=>v>1);
+
+  const lines=[
+    `=== 현재 장부: ${book} ===`,
+    `localStorage 건수: ${localTxs.length}`,
+    `메모리 캐시 건수: ${cachedTxs.length}`,
+    sheetRaw,
+    ``,
+    `=== 반복지출 중복 ===`,
+    dupRecurs.length===0?'중복 없음 ✅':dupRecurs.map(([k,v])=>`❌ ${k} → ${v}개`).join('\n'),
+    ``,
+    `=== ID 없는 항목 ===`,
+    localTxs.filter(t=>!t.id).length===0?'없음 ✅':`${localTxs.filter(t=>!t.id).length}개`,
+    ``,
+    `=== order 없는 항목 ===`,
+    localTxs.filter(t=>t.order==null).length===0?'없음 ✅':`${localTxs.filter(t=>t.order==null).length}개`,
+    ``,
+    `=== 최근 5개 (localStorage) ===`,
+    ...localTxs.slice(-5).reverse().map(t=>`${t.date} ${t.title||'(제목없음)'} ${t.amount} [id:${t.id?.slice(-6)||'없음'}] [order:${t.order??'없음'}]${t.recurId?` [recur:${t.recurId.slice(-6)}]`:''}`),
+    ``,
+    `=== 시트 최근 5행 ===`,
+    ...sheetTxs.slice(-5).reverse().map(r=>`${r[1]||''} ${r[2]||''} ${r[6]||''} [id:${String(r[0]||'').slice(-6)}] [order:${r[8]||'없음'}]`),
+  ];
+  out.textContent=lines.join('\n');
+}
+
+async function forceReloadFromSheet(){
+  const book=curBook();
+  delete txCache[book];
+  await loadFromSheet();
+  render();
+  alert('시트에서 재로드 완료. 건수: '+(txCache[book]||[]).length);
+}
+
+function clearLocalAndReload(){
+  if(!confirm('로컬 캐시를 삭제하고 시트에서 새로 불러옵니까?\n(데이터는 시트에 보존됩니다)'))return;
+  const books=getBooks();
+  books.forEach(b=>{localStorage.removeItem('gab_txs_'+b.id);delete txCache[b.id];});
+  forceReloadFromSheet().then(()=>render());
 }
 
 /* ── KEYBOARD ── */
